@@ -1,22 +1,35 @@
 package mg.matsd;
 
 import mg.matsd.exception.PathRegistrationTentativeException;
+import mg.matsd.javaframework.core.utils.Assert;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
-public class FileWatcher implements Runnable {
+public final class FileWatcher implements Runnable {
     private static final Logger LOGGER = LogManager.getLogger(FileWatcher.class);
     private final List<Path> paths;
 
-    public FileWatcher(final List<Path> paths) {
-        this.paths = paths;
+    public FileWatcher() {
+        paths = new ArrayList<>();
+    }
+
+    public List<Path> getPaths() {
+        return paths;
+    }
+
+    public FileWatcher addPath(final String pathString) {
+        Assert.notBlank(pathString, false, "L'argument pathString ne peut pas être vide ou \"null\"");
+
+        paths.add(Path.of(pathString));
+        return this;
     }
 
     @Override
