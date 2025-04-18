@@ -22,7 +22,7 @@ public class FileWatcher implements Runnable {
     @Override
     public void run() {
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
-            registerPaths(watchService);
+            for (Path path : paths) registerPath(path, watchService);
 
             while (true) {
                 WatchKey watchKey = watchService.take();
@@ -30,7 +30,11 @@ public class FileWatcher implements Runnable {
                     WatchEvent.Kind<?> eventKind = event.kind();
                     if (eventKind == OVERFLOW) return;
 
-                
+                    Path watchable = (Path) watchKey.watchable();
+                    Path p = watchable.resolve((Path) event.context());
+
+                    if (eventKind == ENTRY_CREATE && Files.isDirectory(p))
+                        registerPath(p, watchService);
                 });
 
                 if (!watchKey.reset()) break;
@@ -41,13 +45,15 @@ public class FileWatcher implements Runnable {
         }
     }
 
-    private void registerPaths(final WatchService watchService) {
-        for (Path path : paths) try (Stream<Path> pathStream = Files.walk(path)) {
+    private static void registerPath(final Path path, final WatchService watchService)
+        throws PathRegistrationTentativeException {
+        try (Stream<Path> pathStream = Files.walk(path)) {
             pathStream.filter(Files::isDirectory)
                 .forEach(p -> {
                     try {
                         p.register(watchService, ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE);
-                    } catch (IOException e) {
+                        LOGGER.debug("Enregistrement réussi du path: {}", p);
+                    } catch (Exception e) {
                         LOGGER.error("Échec lors de l'enregistrement du path \"{}\"", p, e);
                     }
                 });
