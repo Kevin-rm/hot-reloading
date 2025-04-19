@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -16,28 +17,36 @@ import static java.nio.file.StandardWatchEventKinds.*;
 public final class FileWatcher implements Runnable {
     private static final Logger LOGGER = LogManager.getLogger(FileWatcher.class);
     private final List<Path> paths;
+    private volatile boolean running;
 
     public FileWatcher() {
-        paths = new ArrayList<>();
+        paths   = new ArrayList<>();
+        running = false;
     }
 
     public List<Path> getPaths() {
-        return paths;
+        return Collections.unmodifiableList(paths);
     }
 
     public FileWatcher addPath(final String pathString) {
-        Assert.notBlank(pathString, false, "L'argument pathString ne peut pas être vide ou \"null\"");
+        Assert.notNull(pathString, "L'argument pathString ne peut pas être \"null\"");
 
         paths.add(Path.of(pathString));
         return this;
     }
 
+    public boolean isRunning() {
+        return running;
+    }
+
     @Override
     public void run() {
+        running = true;
+
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
             for (Path path : paths) registerPath(path, watchService);
 
-            while (true) {
+            while (running) {
                 WatchKey watchKey = watchService.take();
                 watchKey.pollEvents().forEach(event -> {
                     WatchEvent.Kind<?> eventKind = event.kind();
@@ -53,9 +62,11 @@ public final class FileWatcher implements Runnable {
                 if (!watchKey.reset()) break;
             }
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
-        }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally { running = false; }
     }
 
     private static void registerPath(final Path path, final WatchService watchService)
