@@ -7,31 +7,36 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Stream;
+import java.util.*;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
 public final class FileWatcher implements Runnable {
     private static final Logger LOGGER = LogManager.getLogger(FileWatcher.class);
-    private final List<Path> paths;
+    private static final WatchEvent.Kind<?>[] WATCH_EVENT_KINDS = new WatchEvent.Kind[]{
+        ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE};
+
+    private final Set<Path> paths;
     private volatile boolean running;
 
     public FileWatcher() {
-        paths   = new ArrayList<>();
+        paths   = new HashSet<>();
         running = false;
     }
 
-    public List<Path> getPaths() {
-        return Collections.unmodifiableList(paths);
+    public Set<Path> getPaths() {
+        return Collections.unmodifiableSet(paths);
     }
 
     public FileWatcher addPath(final String pathString) {
         Assert.notNull(pathString, "L'argument pathString ne peut pas être \"null\"");
+        Assert.state(!running, "Impossible d'ajouter un chemin lorsque le FileWatcher est déjà en cours d'exécution");
 
-        paths.add(Path.of(pathString));
+        Path path = Path.of(pathString).toAbsolutePath().normalize();
+        Assert.isTrue(Files.exists(path), String.format("Le chemin \"%s\" n'existe pas", pathString));
+        Assert.isTrue(Files.isDirectory(path), String.format("Le chemin \"%s\" n'est pas un répertoire", pathString));
+
+        paths.add(path);
         return this;
     }
 
@@ -61,28 +66,34 @@ public final class FileWatcher implements Runnable {
 
                 if (!watchKey.reset()) break;
             }
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } finally { running = false; }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally { stop(); }
     }
 
-    private static void registerPath(final Path path, final WatchService watchService)
-        throws PathRegistrationTentativeException {
-        try (Stream<Path> pathStream = Files.walk(path)) {
-            pathStream.filter(Files::isDirectory)
-                .forEach(p -> {
-                    try {
-                        p.register(watchService, ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE);
-                        LOGGER.debug("Enregistrement réussi du path: {}", p);
-                    } catch (Exception e) {
-                        LOGGER.error("Échec lors de l'enregistrement du path \"{}\"", p, e);
-                    }
-                });
-        } catch (IOException | SecurityException e) {
-            throw new PathRegistrationTentativeException(e);
+    public void stop() {
+        if (running) running = false;
+    }
+
+    private static void registerPath(final Path path, final WatchService watchService) {
+        Deque<Path> deque = new LinkedList<>();
+        deque.push(path);
+
+        while (!deque.isEmpty()) {
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(deque.pop())) {
+                for (Path p : directoryStream) if (Files.isDirectory(p)) try {
+                    p.register(watchService, WATCH_EVENT_KINDS);
+                    LOGGER.debug("Surveillance du chemin \"{}\" enregistrée", p);
+
+                    deque.push(p);
+                } catch (IOException e) {
+                    LOGGER.error("Échec de surveillance du chemin \"{}\"", p, e);
+                }
+            } catch (IOException | SecurityException e) {
+                throw new PathRegistrationTentativeException(e);
+            }
         }
     }
 }
