@@ -46,11 +46,10 @@ public final class FileWatcher implements Runnable {
 
     @Override
     public void run() {
-        running = true;
-
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
             for (Path path : paths) registerPath(path, watchService);
 
+            running = true;
             while (running) {
                 WatchKey watchKey = watchService.take();
                 watchKey.pollEvents().forEach(event -> {
