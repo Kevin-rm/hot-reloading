@@ -12,8 +12,7 @@ public class Agent {
         fileWatcher.addPath("/target/classes");
 
         Thread thread = new Thread(fileWatcher, "FileWatcher-Thread");
+        thread.setDaemon(true);
         thread.start();
-
-        fileWatcher.stop();
     }
 }
