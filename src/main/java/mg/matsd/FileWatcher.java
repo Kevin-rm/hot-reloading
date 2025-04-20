@@ -46,21 +46,24 @@ public final class FileWatcher implements Runnable {
 
     @Override
     public void run() {
+        running = true;
+
         try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
             for (Path path : paths) registerPath(path, watchService);
 
-            running = true;
             while (running) {
                 WatchKey watchKey = watchService.take();
                 watchKey.pollEvents().forEach(event -> {
                     WatchEvent.Kind<?> eventKind = event.kind();
                     if (eventKind == OVERFLOW) return;
 
-                    Path watchable = (Path) watchKey.watchable();
-                    Path p = watchable.resolve((Path) event.context());
+                    Path resolvedContext = ((Path) watchKey.watchable()).resolve((Path) event.context());
+                    if (eventKind == ENTRY_CREATE && Files.isDirectory(resolvedContext)) {
+                        registerPath(resolvedContext, watchService);
+                        return;
+                    }
 
-                    if (eventKind == ENTRY_CREATE && Files.isDirectory(p))
-                        registerPath(p, watchService);
+
                 });
 
                 if (!watchKey.reset()) break;

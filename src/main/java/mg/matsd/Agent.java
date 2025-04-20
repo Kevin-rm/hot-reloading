@@ -3,8 +3,17 @@ package mg.matsd;
 import java.lang.instrument.Instrumentation;
 
 public class Agent {
+    static Instrumentation instrumentation;
 
     public static void premain(String args, Instrumentation instrumentation) {
-        System.out.println("Initialisation de l'agent HotReloading");
+        Agent.instrumentation = instrumentation;
+
+        FileWatcher fileWatcher = new FileWatcher();
+        fileWatcher.addPath("/target/classes");
+
+        Thread thread = new Thread(fileWatcher, "FileWatcher-Thread");
+        thread.start();
+
+        fileWatcher.stop();
     }
 }
