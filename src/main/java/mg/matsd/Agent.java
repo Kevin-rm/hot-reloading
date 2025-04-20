@@ -3,17 +3,12 @@ package mg.matsd;
 import java.lang.instrument.Instrumentation;
 
 public class Agent {
-    static Instrumentation instrumentation;
-
-    public static Instrumentation getInstrumentation() {
-        return instrumentation;
-    }
 
     public static void premain(String args, Instrumentation instrumentation) {
-        Agent.instrumentation = instrumentation;
-
+        DynamicClassLoader dynamicClassLoader = new DynamicClassLoader("/target/classes", instrumentation);
         FileWatcher fileWatcher = new FileWatcher();
-        fileWatcher.addPath("/target/classes");
+        fileWatcher.addPath("/src/")
+            .addPath(dynamicClassLoader.getClassOutputPath());
 
         Thread thread = new Thread(fileWatcher, "FileWatcher-Thread");
         thread.setDaemon(true);
