@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class DynamicClassLoader {
+public final class DynamicClassLoader {
     private final String classOutputPath;
     private final Instrumentation instrumentation;
     private final Map<String, Class<?>> loadedClasses;
@@ -16,14 +16,16 @@ public class DynamicClassLoader {
         this.instrumentation = instrumentation;
 
         loadedClasses = new ConcurrentHashMap<>();
-        Arrays.stream(instrumentation.getAllLoadedClasses()).forEachOrdered(c -> loadedClasses.put(c.getName(), c));
+        Arrays.stream(instrumentation.getAllLoadedClasses())
+            .filter(c -> c.getClassLoader() != null)
+            .forEachOrdered(c -> loadedClasses.put(c.getName(), c));
     }
 
     public String getClassOutputPath() {
         return classOutputPath;
     }
 
-    public void reload(final Path classFilePath) {
+    public boolean reload(final Path classFilePath) {
 
     }
 }

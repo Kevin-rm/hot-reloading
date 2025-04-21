@@ -16,10 +16,13 @@ public final class FileWatcher implements Runnable {
     private static final WatchEvent.Kind<?>[] WATCH_EVENT_KINDS = new WatchEvent.Kind[]{
         ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE};
 
+    private final DynamicClassLoader dynamicClassLoader;
     private final Set<Path> paths;
     private volatile boolean running;
 
-    public FileWatcher() {
+    FileWatcher(DynamicClassLoader dynamicClassLoader) {
+        this.dynamicClassLoader = dynamicClassLoader;
+
         paths   = new HashSet<>();
         running = false;
     }
@@ -63,7 +66,7 @@ public final class FileWatcher implements Runnable {
                         return;
                     }
 
-
+                    
                 });
 
                 if (!watchKey.reset()) break;
