@@ -11,7 +11,7 @@ import java.util.*;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
-public final class FileWatcher implements Runnable {
+public class FileWatcher implements Runnable {
     private static final Logger LOGGER = LogManager.getLogger(FileWatcher.class);
     private static final WatchEvent.Kind<?>[] WATCH_EVENT_KINDS = new WatchEvent.Kind[]{
         ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE};
@@ -23,7 +23,8 @@ public final class FileWatcher implements Runnable {
     FileWatcher(DynamicClassLoader dynamicClassLoader) {
         this.dynamicClassLoader = dynamicClassLoader;
 
-        paths   = new HashSet<>();
+        paths = new HashSet<>();
+        paths.add(dynamicClassLoader.getClassOutputPath());
         running = false;
     }
 
@@ -32,14 +33,9 @@ public final class FileWatcher implements Runnable {
     }
 
     public FileWatcher addPath(final String pathString) {
-        Assert.notNull(pathString, "L'argument pathString ne peut pas être \"null\"");
         Assert.state(!running, "Impossible d'ajouter un chemin lorsque le FileWatcher est déjà en cours d'exécution");
 
-        Path path = Path.of(pathString).toAbsolutePath().normalize();
-        Assert.isTrue(Files.exists(path), String.format("Le chemin \"%s\" n'existe pas", pathString));
-        Assert.isTrue(Files.isDirectory(path), String.format("Le chemin \"%s\" n'est pas un répertoire", pathString));
-
-        paths.add(path);
+        paths.add(Utils.stringToPath(pathString));
         return this;
     }
 
@@ -60,13 +56,15 @@ public final class FileWatcher implements Runnable {
                     WatchEvent.Kind<?> eventKind = event.kind();
                     if (eventKind == OVERFLOW) return;
 
-                    Path resolvedContext = ((Path) watchKey.watchable()).resolve((Path) event.context());
+                    final Path resolvedContext = ((Path) watchKey.watchable()).resolve((Path) event.context());
                     if (eventKind == ENTRY_CREATE && Files.isDirectory(resolvedContext)) {
                         registerPath(resolvedContext, watchService);
                         return;
                     }
 
-                    
+                    final String s = resolvedContext.toString();
+                    if (eventKind == ENTRY_MODIFY && s.endsWith(".class"))
+                        dynamicClassLoader.reload(resolvedContext);
                 });
 
                 if (!watchKey.reset()) break;
