@@ -57,14 +57,18 @@ public class FileWatcher implements Runnable {
                     if (eventKind == OVERFLOW) return;
 
                     final Path resolvedContext = ((Path) watchKey.watchable()).resolve((Path) event.context());
+                    final String resolvedContextString = resolvedContext.toString();
+
+                    if (resolvedContextString.endsWith("~") || resolvedContextString.endsWith(".tmp")) return;
                     if (eventKind == ENTRY_CREATE && Files.isDirectory(resolvedContext)) {
                         registerPath(resolvedContext, watchService);
                         return;
                     }
 
-                    final String s = resolvedContext.toString();
-                    if (eventKind == ENTRY_MODIFY && s.endsWith(".class"))
-                        dynamicClassLoader.reload(resolvedContext);
+                    if (eventKind == ENTRY_MODIFY) {
+                        if (resolvedContextString.endsWith(".class")) dynamicClassLoader.reload(resolvedContext);
+                        else System.out.println(resolvedContextString + " -> " + event.count());
+                    }
                 });
 
                 if (!watchKey.reset()) break;
